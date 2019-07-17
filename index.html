@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+  <title>Video Player</title>
+  <script src="./m3u8-parser.min.js"></script>
+  <style>
+    video {
+      width: 480px;
+      height: 320px;
+    }
+  </style>
+</head>
+
+<body>
+  <video id="player" controls></video>
+  <script>
+    const videoUrlBase = 'https://thdatamambet-a.akamaihd.net/vod/62164/617/50617/1563374848-JNfMMHoS-50617/'
+    const m3u8Path = '13114540629089060734.m3u8';
+
+    const player = document.querySelector('#player');
+    const mediaSource = new MediaSource();
+    // player.addEventListener("click", function () {
+    //   player.play();
+    // }, false);
+
+    async function fetchPlaylist(url) {
+      const res = await fetch(url);
+      const manifest = await res.text();
+
+      // const manifest = text.split('\n');
+      const parser = new m3u8Parser.Parser();
+      parser.push(manifest);
+      parser.end();
+      const parsedManifest = parser.manifest;
+      // console.log(parsedManifest);
+      return parsedManifest.segments;
+    }
+
+    async function initPlayer() {
+      player.pause();
+      player.src = URL.createObjectURL(mediaSource);
+      mediaSource.addEventListener('sourceopen', onSourceOpen);
+
+      async function onSourceOpen() {
+        const mime = 'video/mp4'
+        const sourceBuffer = mediaSource.addSourceBuffer(mime);
+        const segments = await fetchPlaylist(videoUrlBase + m3u8Path);
+
+        let i = 0;
+        let offset = 0;
+        const segment = segments[i];
+        // const buffer = await fetch(videoUrlBase + segment.uri, {
+        //   responseType: 'arraybuffer'
+        // }).then(res => res.arrayBuffer());
+        const buffer = await fetchSegment(videoUrlBase + segment.uri);
+        // sourceBuffer.timestampOffset = 0;
+        sourceBuffer.appendBuffer(buffer);
+
+
+        sourceBuffer.addEventListener('updateend', async () => {
+
+
+          offset += segments[i].duration;
+          i++;
+          if (i < segments.length) {
+            const segment = segments[i];
+            const buffer = await fetch(videoUrlBase + segment.uri).then(res => res.arrayBuffer());
+            sourceBuffer.timestampOffset = offset;
+            sourceBuffer.appendBuffer(buffer);
+          } else {
+            // mediaSource.endOfStream();
+          }
+        });
+      }
+    }
+
+    function fetchSegment(url) {
+      return new Promise(function (resolve, reject) {
+
+        var xhr = new XMLHttpRequest();
+        if (url) { // Make sure we've got incoming params
+          xhr.open('GET', url);
+          xhr.send();
+          xhr.responseType = 'arraybuffer';
+          try {
+            xhr.addEventListener("readystatechange", function () {
+              if (xhr.readyState == xhr.DONE) { //wait for video to load
+                try {
+                  resolve(new Uint8Array(xhr.response))
+                  // sourceBuffer.appendBuffer(new Uint8Array(xhr.response));
+                } catch (e) {
+                  reject('Exception while appending', e);
+                }
+              }
+            }, false);
+          } catch (e) {
+            reject(e);
+            return // No value for range
+          }
+        }
+      })
+    }
+
+    initPlayer();
+
+  </script>
+</body>
+
+</html>
